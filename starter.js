@@ -19,12 +19,6 @@ function insertElementBefore(tag, sibling, innerHTML) {
     return e;
 }
 
-function getZoom(element) {
-    const t = window.getComputedStyle(element).transform;
-    const m = /^matrix\(([.0-9]+)/.exec(t);
-    return parseFloat(m[1]);
-}
-
 class AsyncQueue {
     constructor() {
         this.queued = [];
@@ -69,12 +63,12 @@ function setStyle() {
         transform: scale(1);
     }
     
-    .text-mode {
+    .text-mode, .char-mode {
         display: flex;
         flex-direction: column;
     }
 
-    .text-mode * {
+    .text-mode *, .char-mode * {
         font-family: monospace;
         color: black;
         background-color: transparent;
@@ -83,7 +77,7 @@ function setStyle() {
         padding: 0;
     }
 
-    .text-mode :last-child {
+    .text-mode > :last-child {
         display: flex;
     }
 
@@ -97,23 +91,36 @@ function setStyle() {
     appendElement('style', document.head, s);
 }
 
-function autoZoomChild(parent) {
+function getZoom(element) {
+    const t = window.getComputedStyle(element).transform;
+    const m = /^matrix\(([.0-9]+)/.exec(t);
+    return m ? parseFloat(m[1]) : null;
+}
+
+function autoZoom(child) {
+    const parent = child.parentElement;
     parent.setAttribute('class', 'fill-viewport');
-    const child = parent.querySelector('*');
-    const ro = new ResizeObserver(_ => {
+
+    function zoom() {
         const pr = parent.getBoundingClientRect();
         const cr = child.getBoundingClientRect();
 
         let z = getZoom(child);
+        if (!z)
+            return;
+
         if (cr.width / cr.height < pr.width / pr.height)
             z *= pr.height / cr.height;
         else
             z *= pr.width / cr.width;
 
         child.style.transform = `scale(${z})`;
-    });
+    }
+
+    const ro = new ResizeObserver(zoom);
     ro.observe(parent);
     ro.observe(child);
+    zoom();
 }
 
 function isLeadingSurrogate(c) {
@@ -206,18 +213,87 @@ class TextModeInterface {
     }
 }
 
-function cleanup() {
+const keyCodes = {
+    backspace: 8, tab: 9, enter: 13, shift: 16, control: 17, alt: 18, capsLock: 20, escape: 27, space: 32,
+    pageUp: 33, pageDown: 34, end: 35, home: 36, left: 37, up: 38, right: 39, down: 40,
+    insert: 45, delete: 46,
+    zero: 48, one: 49, two: 50, three: 51, four: 52, five: 53, six: 54, seven: 55, eight: 56, nine: 57,
+    a: 65, b: 66, c: 67, d: 68, e: 69, f: 70, g: 71, h: 72, i: 73,
+    j: 74, k: 75, l: 76, m: 77, n: 78, o: 79, p: 80, q: 81, r: 82,
+    s: 83, t: 84, u: 85, v: 86, w: 87, x: 88, y: 89, z: 90,
+    f1: 112, f2: 113, f3: 114, f4: 115, f5: 116, f6: 117, f7: 118, f8: 119, f9: 120, f10: 121, f11: 122, f12: 123,
+    semicolon: 186, equals: 187, comma: 188, dash: 189, period: 190,
+    slash: 191, backtick: 192, leftBracket: 219, backslash: 220, rightBracket: 221, quote: 222
+};
+
+const printableRegEx = /\p{L}|\p{N}|\p{S}|\p{P}/u;
+class CharacterModeInterface {
+    constructor(parent, cols, rows) {
+        if (cols < 1 || rows < 1)
+            throw Error('bad dimensions');
+
+        this.parent = parent;
+        this.cols = cols;
+        this.rows = rows;
+        this.keyQueue = new AsyncQueue();
+
+        parent.setAttribute('class', 'char-mode');
+        for (let i = 0; i < rows; i++) {
+            const row = appendElement('div', parent);
+            for (let j = 0; j < cols; j++)
+                appendElement('span', row, '\u00a0')
+        }
+
+        docEvts.add('keydown', evt => {
+            if (evt.keyCode !== 116)
+                evt.preventDefault();
+
+            if (!evt.repeat)
+                this.keyQueue.enqueue({
+                    keyCode: evt.keyCode,
+                    down: true
+                });
+        });
+
+        docEvts.add('keyup', evt => {
+            this.keyQueue.enqueue({
+                keyCode: evt.keyCode,
+                down: false
+            });
+        });
+    }
+
+    async readKey() {
+        return await this.keyQueue.dequeue();
+    }
+
+    writeChar(c, col, row) {
+        if (0 <= col && col < this.cols && 0 <= row && row < this.rows) {
+            const m = printableRegEx.exec(c.charAt(0));
+            c = m != null ? m[0] : '\u00a0';
+            this.parent.children[row].children[col].innerText = c;
+        }
+    }
+}
+
+function modeSwitch() {
     document.body.innerHTML = '';
     docEvts.removeAll();
+    setStyle();
 }
 
 function textMode(cols, rows) {
-    cleanup();
-    setStyle();
-    const parent = appendElement('div', document.body);
-    const tmiDiv = appendElement('div', parent);
-    autoZoomChild(parent);
-    return new TextModeInterface(tmiDiv, cols, rows);
+    modeSwitch();
+    const div = appendElement('div', appendElement('div', document.body));
+    autoZoom(div);
+    return new TextModeInterface(div, cols, rows);
 }
 
-export { textMode };
+function charMode(cols, rows) {
+    modeSwitch();
+    const div = appendElement('div', appendElement('div', document.body));
+    autoZoom(div);
+    return new CharacterModeInterface(div, cols, rows);
+}
+
+export { textMode, charMode, keyCodes };
