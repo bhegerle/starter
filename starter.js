@@ -49,6 +49,7 @@ function setStyle() {
     html, body {
         margin: 0;
         padding: 0;
+        overflow: hidden;
     }
     
     .fill-viewport {
@@ -93,7 +94,7 @@ function setStyle() {
 
 function getZoom(element) {
     const t = window.getComputedStyle(element).transform;
-    const m = /^matrix\(([.0-9]+)/.exec(t);
+    const m = /^matrix\(([.0-9]+), 0, 0, \1, 0, 0\)$/.exec(t);
     return m ? parseFloat(m[1]) : null;
 }
 

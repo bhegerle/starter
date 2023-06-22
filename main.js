@@ -20,3 +20,4 @@ while (true) {
         char.writeChar('x', x, y);
     }
 }
+
