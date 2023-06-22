@@ -132,6 +132,22 @@ function* breakText(s, n) {
     }
 }
 
+const docEvts = {
+    registered: [],
+
+    add(type, listener) {
+        document.addEventListener(type, listener);
+        this.registered.push({ type, listener });
+    },
+
+    removeAll() {
+        while (this.registered.length > 0) {
+            const { type, listener } = this.registered.shift();
+            document.removeEventListener(type, listener);
+        }
+    }
+};
+
 class TextModeInterface {
     constructor(parent, cols, rows) {
         if (cols < 2 || rows < 1)
@@ -141,7 +157,6 @@ class TextModeInterface {
         this.cols = cols;
         this.rows = rows;
         this.inputQueue = new AsyncQueue();
-        this.splitPattern = new RegExp(`.{1,${cols}}`, 'g');
 
         parent.setAttribute('class', 'text-mode');
 
@@ -163,7 +178,7 @@ class TextModeInterface {
             this.input.selectionStart = this.input.value.length;
         });
 
-        document.addEventListener('keydown', evt => {
+        docEvts.add('keydown', evt => {
             if (evt.target === this.input) {
                 if (evt.code === 'Enter') {
                     this.inputQueue.enqueue(this.input.value);
@@ -191,16 +206,18 @@ class TextModeInterface {
     }
 }
 
-function textMode(cols, rows) {
-    setStyle();
+function cleanup() {
     document.body.innerHTML = '';
+    docEvts.removeAll();
+}
+
+function textMode(cols, rows) {
+    cleanup();
+    setStyle();
     const parent = appendElement('div', document.body);
     const tmiDiv = appendElement('div', parent);
     autoZoomChild(parent);
-
-    const tmi = new TextModeInterface(tmiDiv, cols, rows);
-
-    return tmi;
+    return new TextModeInterface(tmiDiv, cols, rows);
 }
 
 export { textMode };
