@@ -228,6 +228,7 @@ const keyCodes = {
 };
 
 const printableRegEx = /\p{L}|\p{N}|\p{S}|\p{P}/u;
+const charStyles = ['fontStyle', 'fontWeight', 'textDecoration', 'color', 'backgroundColor'];
 class CharacterModeInterface {
     constructor(parent, cols, rows) {
         if (cols < 1 || rows < 1)
@@ -268,11 +269,44 @@ class CharacterModeInterface {
         return await this.keyQueue.dequeue();
     }
 
+    getElement(col, row) {
+        if (0 <= col && col < this.cols && 0 <= row && row < this.rows)
+            return this.parent.children[row].children[col];
+        else
+            return null;
+    }
+
     writeChar(c, col, row) {
-        if (0 <= col && col < this.cols && 0 <= row && row < this.rows) {
+        const e = this.getElement(col, row);
+        if (e != null) {
             const m = printableRegEx.exec(c.charAt(0));
             c = m != null ? m[0] : '\u00a0';
-            this.parent.children[row].children[col].innerText = c;
+            e.innerText = c;
+        }
+    }
+
+    readChar(col, row) {
+        const e = this.getElement(col, row);
+        return e != null ? e.innerText : null;
+    }
+
+    setCharStyle(style, col, row) {
+        const e = this.getElement(col, row);
+        if (e != null)
+            for (let p of charStyles)
+                if (style[p])
+                    e.style[p] = style[p];
+    }
+
+    getCharStyle(col, row) {
+        const e = this.getElement(col, row);
+        if (e != null && e.style != null) {
+            const style = {};
+            for (let p of charStyles)
+                style[p] = e.style[p];
+            return style;
+        } else {
+            return null;
         }
     }
 }
