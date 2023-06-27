@@ -9,9 +9,19 @@ const keyCharacters = {};
 for (let k in keyCodes)
     keyCharacters[keyCodes[k]] = k;
 
-const style = {
-    color: 'gray'
-};
+for (let i = 0; i < 80; i++)
+    for (let j = 0; j < 25; j++)
+        char.writeChar('*', i, j);
+
+async function readPtrs() {
+    while (true) {
+        const p = await char.readPtr();
+        if (p.in)
+            char.writeChar('#', p.col, p.row);
+    }
+}
+
+readPtrs();
 
 let x = 0, y = 0;
 while (true) {
@@ -24,7 +34,7 @@ while (true) {
         console.log(char.readChar(x, y));
         console.log(char.getCharStyle(x, y));
         char.writeChar('x', x, y);
-        char.setCharStyle(style, x, y)
+        char.setCharStyle({ color: 'gray' }, x, y)
     }
 }
 

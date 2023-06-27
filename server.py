@@ -26,7 +26,7 @@ class HTTPRequestHandler(SimpleHTTPRequestHandler):
         self.wfile.write(s.encode('UTF-8'))
 
 
-PORT = 8000
+PORT = 8001
 httpd = HTTPServer(('', PORT), HTTPRequestHandler)
 print(f'serving from http://localhost:{PORT}/')
 httpd.serve_forever()

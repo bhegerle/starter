@@ -64,8 +64,7 @@ function setStyle() {
         transform: scale(1);
     }
     
-    .text-mode, .char-mode {
-        display: flex;
+    .text-mode {
         flex-direction: column;
     }
 
@@ -85,6 +84,11 @@ function setStyle() {
     .text-mode input {
         border: none;
         outline: none;
+    }
+
+    .char-mode {
+        display: grid;
+        cursor: default;
     }
     `;
 
@@ -238,13 +242,12 @@ class CharacterModeInterface {
         this.cols = cols;
         this.rows = rows;
         this.keyQueue = new AsyncQueue();
+        this.ptrQueue = new AsyncQueue();
 
         parent.setAttribute('class', 'char-mode');
-        for (let i = 0; i < rows; i++) {
-            const row = appendElement('div', parent);
-            for (let j = 0; j < cols; j++)
-                appendElement('span', row, '\u00a0')
-        }
+        parent.setAttribute('style', `grid-template-columns: repeat(${cols}, auto); grid-template-rows: repeat(${rows}, auto);`);
+        for (let i = 0; i < rows * cols; i++)
+            appendElement('div', parent, '\u00a0')
 
         docEvts.add('keydown', evt => {
             if (evt.keyCode !== 116)
@@ -263,15 +266,39 @@ class CharacterModeInterface {
                 down: false
             });
         });
+
+
+        const enqueuePtrEvt = (evt, down, up) => {
+            const r = this.parent.getBoundingClientRect();
+            const col = Math.round((evt.clientX - r.left) * cols / r.width - 0.5);
+            const row = Math.round((evt.clientY - r.top) * rows / r.height - 0.5);
+            this.ptrQueue.enqueue({
+                row, col, down, up,
+                in: 0 <= col && col < cols && 0 <= row && row < rows
+            });
+        };
+
+        this.parent.addEventListener('pointerdown', evt => {
+            this.parent.setPointerCapture(evt.pointerId);
+            evt.preventDefault();
+            enqueuePtrEvt(evt, true, false);
+        });
+
+        this.parent.addEventListener('pointermove', evt => enqueuePtrEvt(evt, false, false));
+        this.parent.addEventListener('pointerup', evt => enqueuePtrEvt(evt, false, true));
     }
 
     async readKey() {
         return await this.keyQueue.dequeue();
     }
 
+    async readPtr() {
+        return await this.ptrQueue.dequeue();
+    }
+
     getElement(col, row) {
         if (0 <= col && col < this.cols && 0 <= row && row < this.rows)
-            return this.parent.children[row].children[col];
+            return this.parent.children[row * this.cols + col];
         else
             return null;
     }
