@@ -55,14 +55,29 @@ async function post(url, body) {
     return await response.json();
 }
 
+function extractImageData(element) {
+    const canvas = document.createElement('canvas');
+    canvas.width = element.width;
+    canvas.height = element.height;
+    
+    const ctx = canvas.getContext('2d');
+    ctx.drawImage(element, 0, 0);
+
+    const imgData = ctx.getImageData(0, 0, element.width, element.height);
+    canvas.remove();
+
+    return imgData;
+}
+
 async function getResourceMap(directory) {
     async function getResource(path) {
         if (path.endsWith('.png')) {
-            return new Promise(resolve => {
+            const img = new Promise(resolve => {
                 const img = new Image();
                 img.src = path;
                 img.onload = () => resolve(img);
             });
+            return extractImageData(await img);
         } else {
             const response = await fetch(path);
             if (response.headers.get('Content-Type') === 'application/json')
@@ -76,8 +91,12 @@ async function getResourceMap(directory) {
     const tasks = paths.map(getResource);
 
     const map = {};
-    for (let i = 0; i < paths.length; i++)
-        map[paths[i]] = await tasks[i];
+    for (let i = 0; i < paths.length; i++) {
+        let p = paths[i];
+        if (p.startsWith(directory))
+            p = p.substring(directory.length);
+        map[p] = await tasks[i];
+    }
 
     return map;
 }

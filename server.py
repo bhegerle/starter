@@ -46,8 +46,8 @@ class HTTPRequestHandler(SimpleHTTPRequestHandler):
 def find(path):
     cwd = Path(getcwd())
     rpath = cwd.joinpath(path).resolve()
-    if not rpath.is_relative_to(cwd):
-        raise Exception()
+    # if not rpath.is_relative_to(cwd):
+    #     raise Exception()
 
     return [str(PurePosixPath(p.relative_to(cwd)))
             for p in rpath.glob('**/*')

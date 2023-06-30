@@ -1,42 +1,4 @@
-import { textMode, charMode, pixelMode, keyCodes } from './starter.js';
-
-async function post(url, body) {
-    const response = await fetch(url, {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(body)
-    });
-    return await response.json();
-}
-
-async function getContents(directory) {
-    async function asyncGet(path) {
-        if (path.endsWith('.png')) {
-            return new Promise(resolve => {
-                const img = new Image();
-                img.src = path;
-                img.onload = () => resolve(img);
-            });
-        } else {
-            const response = await fetch(path);
-            if (response.headers.get('Content-Type') === 'application/json')
-                return await response.json();
-            else
-                return response.body;
-        }
-    }
-
-    const paths = await post('/find', directory);
-    const tasks = paths.map(asyncGet);
-
-    const map = {};
-    for (let i = 0; i < paths.length; i++)
-        map[paths[i]] = await tasks[i];
-
-    return map;
-}
+import { textMode, charMode, pixelMode, keyCodes, getResourceMap } from './starter.js';
 
 async function txtDemo() {
     const txt = textMode(80, 25);
@@ -80,6 +42,26 @@ async function charDemo() {
     readPtr();
 }
 
+async function imageDemo() {
+    const pxl = pixelMode(128, 128);
+    const res = await getResourceMap('content/');
+
+    const img = res['img.png'];
+    const color = res['msg.json'].borderColor;
+
+    pxl.writeImage(img, 10, 10);
+
+    for (let x = 9; x < img.width + 11; x++) {
+        pxl.writePixel(color, x, 9);
+        pxl.writePixel(color, x, img.height + 10);
+    }
+
+    for (let y = 10; y < img.height + 10; y++) {
+        pxl.writePixel(color, 9, y);
+        pxl.writePixel(color, img.width + 10, y);
+    }
+}
+
 async function pxlDemo() {
     const pxl = pixelMode(30, 30);
 
@@ -93,7 +75,8 @@ async function pxlDemo() {
 const navMap = {
     '#pxl': pxlDemo,
     '#txt': txtDemo,
-    '#char': charDemo
+    '#char': charDemo,
+    '#img': imageDemo
 };
 
 function showMenu() {
@@ -102,6 +85,7 @@ function showMenu() {
             <p><a href="#txt">text echo</a></p>
             <p><a href="#char">char paint</a></p>
             <p><a href="#pxl">pixel paint</a></p>
+            <p><a href="#img">image demo</a></p>
             <p><a href="#gfx">2D graphics</a></p>
         </div>`;
 }
