@@ -51,6 +51,10 @@ function setStyle() {
         padding: 0;
         overflow: hidden;
     }
+
+    canvas {
+        image-rendering: pixelated;
+    }
     
     .fill-viewport {
         height: 100vh;
@@ -231,8 +235,58 @@ const keyCodes = {
     slash: 191, backtick: 192, leftBracket: 219, backslash: 220, rightBracket: 221, quote: 222
 };
 
+function createKeyEventQueue() {
+    const keyQueue = new AsyncQueue();
+
+    docEvts.add('keydown', evt => {
+        if (evt.keyCode !== 116)
+            evt.preventDefault();
+
+        if (!evt.repeat)
+            keyQueue.enqueue({
+                keyCode: evt.keyCode,
+                down: true
+            });
+    });
+
+    docEvts.add('keyup', evt => {
+        keyQueue.enqueue({
+            keyCode: evt.keyCode,
+            down: false
+        });
+    });
+
+    return keyQueue;
+}
+
+function createPointerEventQueue(element, logicalWidth, logicalHeight) {
+    const ptrQueue = new AsyncQueue();
+
+    function enqueuePtrEvt(evt, down, up) {
+        const r = element.getBoundingClientRect();
+        const x = (evt.clientX - r.left + 0.5) * logicalWidth / r.width;
+        const y = (evt.clientY - r.top + 0.5) * logicalHeight / r.height;
+        ptrQueue.enqueue({
+            y, x, down, up,
+            in: 0 < x && x < logicalWidth && 0 < y && y < logicalHeight
+        });
+    }
+
+    element.addEventListener('pointerdown', evt => {
+        element.setPointerCapture(evt.pointerId);
+        evt.preventDefault();
+        enqueuePtrEvt(evt, true, false);
+    });
+
+    element.addEventListener('pointermove', evt => enqueuePtrEvt(evt, false, false));
+    element.addEventListener('pointerup', evt => enqueuePtrEvt(evt, false, true));
+
+    return ptrQueue;
+}
+
 const printableRegEx = /\p{L}|\p{N}|\p{S}|\p{P}/u;
 const charStyles = ['fontStyle', 'fontWeight', 'textDecoration', 'color', 'backgroundColor'];
+
 class CharacterModeInterface {
     constructor(parent, cols, rows) {
         if (cols < 1 || rows < 1)
@@ -241,51 +295,14 @@ class CharacterModeInterface {
         this.parent = parent;
         this.cols = cols;
         this.rows = rows;
-        this.keyQueue = new AsyncQueue();
-        this.ptrQueue = new AsyncQueue();
 
         parent.setAttribute('class', 'char-mode');
         parent.setAttribute('style', `grid-template-columns: repeat(${cols}, auto); grid-template-rows: repeat(${rows}, auto);`);
         for (let i = 0; i < rows * cols; i++)
-            appendElement('div', parent, '\u00a0')
+            appendElement('div', parent, '\u00a0');
 
-        docEvts.add('keydown', evt => {
-            if (evt.keyCode !== 116)
-                evt.preventDefault();
-
-            if (!evt.repeat)
-                this.keyQueue.enqueue({
-                    keyCode: evt.keyCode,
-                    down: true
-                });
-        });
-
-        docEvts.add('keyup', evt => {
-            this.keyQueue.enqueue({
-                keyCode: evt.keyCode,
-                down: false
-            });
-        });
-
-
-        const enqueuePtrEvt = (evt, down, up) => {
-            const r = this.parent.getBoundingClientRect();
-            const col = Math.round((evt.clientX - r.left) * cols / r.width - 0.5);
-            const row = Math.round((evt.clientY - r.top) * rows / r.height - 0.5);
-            this.ptrQueue.enqueue({
-                row, col, down, up,
-                in: 0 <= col && col < cols && 0 <= row && row < rows
-            });
-        };
-
-        this.parent.addEventListener('pointerdown', evt => {
-            this.parent.setPointerCapture(evt.pointerId);
-            evt.preventDefault();
-            enqueuePtrEvt(evt, true, false);
-        });
-
-        this.parent.addEventListener('pointermove', evt => enqueuePtrEvt(evt, false, false));
-        this.parent.addEventListener('pointerup', evt => enqueuePtrEvt(evt, false, true));
+        this.keyQueue = createKeyEventQueue();
+        this.ptrQueue = createPointerEventQueue(parent, cols, rows);
     }
 
     async readKey() {
@@ -293,7 +310,14 @@ class CharacterModeInterface {
     }
 
     async readPtr() {
-        return await this.ptrQueue.dequeue();
+        const evt = await this.ptrQueue.dequeue();
+        return {
+            row: parseInt(evt.y),
+            col: parseInt(evt.x),
+            down: evt.down,
+            up: evt.up,
+            in: evt.in
+        };
     }
 
     getElement(col, row) {
@@ -338,6 +362,64 @@ class CharacterModeInterface {
     }
 }
 
+class PixelModeInterface {
+    constructor(element, width, height) {
+        this.width = width;
+        this.height = height;
+        this.ctx = element.getContext("2d");
+
+        this.keyQueue = createKeyEventQueue();
+        this.ptrQueue = createPointerEventQueue(element, width, height);
+    }
+
+    async readKey() {
+        return await this.keyQueue.dequeue();
+    }
+
+    async readPtr() {
+        const evt = await this.ptrQueue.dequeue();
+        return {
+            x: parseInt(evt.x),
+            y: parseInt(evt.y),
+            down: evt.down,
+            up: evt.up,
+            in: evt.in
+        };
+    }
+
+    writePixel(pxl, x, y) {
+        const b = new Uint8ClampedArray(4);
+        b[0] = pxl.r;
+        b[1] = pxl.g;
+        b[2] = pxl.b;
+        b[3] = pxl.a != null ? pxl.a : 255;
+
+        this.writeImageRect(new ImageData(b, 1), x, y, 0, 0, 1, 1);
+    }
+
+    readPixel(x, y) {
+        const img = this.readImage(x, y, 1, 1);
+        return {
+            r: img.data[0],
+            g: img.data[1],
+            b: img.data[2],
+            a: img.data[3],
+        };
+    }
+
+    writeImage(img, x, y) {
+        this.writeImageRect(img, x, y, 0, 0, img.width, img.height);
+    }
+
+    readImage(x, y, width, height) {
+        return this.ctx.getImageData(x, y, width, height);
+    }
+
+    writeImageRect(img, x, y, ix, iy, iwidth, iheight) {
+        this.ctx.putImageData(img, x, y, ix, iy, iwidth, iheight);
+    }
+}
+
 function modeSwitch() {
     document.body.innerHTML = '';
     docEvts.removeAll();
@@ -358,4 +440,13 @@ function charMode(cols, rows) {
     return new CharacterModeInterface(div, cols, rows);
 }
 
-export { textMode, charMode, keyCodes };
+function pixelMode(width, height) {
+    modeSwitch();
+    const canvas = appendElement('canvas', appendElement('div', document.body));
+    canvas.setAttribute('width', width);
+    canvas.setAttribute('height', height);
+    autoZoom(canvas);
+    return new PixelModeInterface(canvas, width, height);
+}
+
+export { textMode, charMode, pixelMode, keyCodes };

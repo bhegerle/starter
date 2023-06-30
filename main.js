@@ -1,40 +1,43 @@
-import { charMode, textMode, keyCodes } from './starter.js';
+import { textMode, pixelMode, keyCodes } from './starter.js';
 
-const txt = textMode(80, 25);
-txt.writeLine('################################################################################');
+async function txtDemo() {
+    const txt = textMode(80, 25);
 
-const char = charMode(80, 25);
+    txt.writeLine('Hello!');
 
-const keyCharacters = {};
-for (let k in keyCodes)
-    keyCharacters[keyCodes[k]] = k;
-
-for (let i = 0; i < 80; i++)
-    for (let j = 0; j < 25; j++)
-        char.writeChar('*', i, j);
-
-async function readPtrs() {
     while (true) {
-        const p = await char.readPtr();
-        if (p.in)
-            char.writeChar('#', p.col, p.row);
+        const s = await txt.readLine();
+        txt.writeLine(s);
     }
 }
 
-readPtrs();
+async function pxlDemo() {
+    const pxl = pixelMode(30, 30);
 
-let x = 0, y = 0;
-while (true) {
-    const k = await char.readKey();
-    if (k.down) {
-        if (k.keyCode == keyCodes.up) y--;
-        if (k.keyCode == keyCodes.down) y++;
-        if (k.keyCode == keyCodes.left) x--;
-        if (k.keyCode == keyCodes.right) x++;
-        console.log(char.readChar(x, y));
-        console.log(char.getCharStyle(x, y));
-        char.writeChar('x', x, y);
-        char.setCharStyle({ color: 'gray' }, x, y)
+    while (true) {
+        const ptr = await pxl.readPtr();
+        if (ptr.in)
+            pxl.writePixel({ r: 240, g: 213, b: 100 }, ptr.x, ptr.y);
     }
 }
 
+const navMap = {
+    '#pxl': pxlDemo,
+    '#txt': txtDemo
+};
+
+function showMenu() {
+    document.body.innerHTML = `
+        <div style="font-family: sans-serif;">
+            <p><a href="#txt">text-mode</a></p>
+            <p><a href="#pxl">pixel-graphics</a></p>
+        </div>`;
+}
+
+function nav() {
+    const mode = navMap[document.location.hash] || showMenu;
+    mode();
+}
+
+window.onhashchange = nav;
+nav();
