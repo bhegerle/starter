@@ -1,5 +1,43 @@
 import { textMode, charMode, pixelMode, keyCodes } from './starter.js';
 
+async function post(url, body) {
+    const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(body)
+    });
+    return await response.json();
+}
+
+async function getContents(directory) {
+    async function asyncGet(path) {
+        if (path.endsWith('.png')) {
+            return new Promise(resolve => {
+                const img = new Image();
+                img.src = path;
+                img.onload = () => resolve(img);
+            });
+        } else {
+            const response = await fetch(path);
+            if (response.headers.get('Content-Type') === 'application/json')
+                return await response.json();
+            else
+                return response.body;
+        }
+    }
+
+    const paths = await post('/find', directory);
+    const tasks = paths.map(asyncGet);
+
+    const map = {};
+    for (let i = 0; i < paths.length; i++)
+        map[paths[i]] = await tasks[i];
+
+    return map;
+}
+
 async function txtDemo() {
     const txt = textMode(80, 25);
 
