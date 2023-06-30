@@ -1,4 +1,4 @@
-import { textMode, pixelMode, keyCodes } from './starter.js';
+import { textMode, charMode, pixelMode, keyCodes } from './starter.js';
 
 async function txtDemo() {
     const txt = textMode(80, 25);
@@ -11,26 +11,60 @@ async function txtDemo() {
     }
 }
 
+async function charDemo() {
+    const keyCharacters = {};
+    for (let k in keyCodes)
+        if (k.length === 1)
+            keyCharacters[keyCodes[k]] = k;
+
+    const char = charMode(80, 25);
+
+    let c = '#';
+
+    async function readKeys() {
+        while (true) {
+            const k = await char.readKey();
+            if (k.down && k.keyCode in keyCharacters)
+                c = keyCharacters[k.keyCode];
+        }
+    }
+
+    async function readPtr() {
+        while (true) {
+            const ptr = await char.readPtr();
+            if (ptr.down && ptr.in)
+                char.writeChar(c, ptr.col, ptr.row);
+            console.log(ptr);
+        }
+    }
+
+    readKeys();
+    readPtr();
+}
+
 async function pxlDemo() {
     const pxl = pixelMode(30, 30);
 
     while (true) {
         const ptr = await pxl.readPtr();
-        if (ptr.in)
+        if (ptr.down && ptr.in)
             pxl.writePixel({ r: 240, g: 213, b: 100 }, ptr.x, ptr.y);
     }
 }
 
 const navMap = {
     '#pxl': pxlDemo,
-    '#txt': txtDemo
+    '#txt': txtDemo,
+    '#char': charDemo
 };
 
 function showMenu() {
     document.body.innerHTML = `
         <div style="font-family: sans-serif;">
-            <p><a href="#txt">text-mode</a></p>
-            <p><a href="#pxl">pixel-graphics</a></p>
+            <p><a href="#txt">text echo</a></p>
+            <p><a href="#char">char paint</a></p>
+            <p><a href="#pxl">pixel paint</a></p>
+            <p><a href="#gfx">2D graphics</a></p>
         </div>`;
 }
 
