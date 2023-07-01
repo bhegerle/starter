@@ -59,7 +59,7 @@ function extractImageData(element) {
     const canvas = document.createElement('canvas');
     canvas.width = element.width;
     canvas.height = element.height;
-    
+
     const ctx = canvas.getContext('2d');
     ctx.drawImage(element, 0, 0);
 
@@ -69,9 +69,17 @@ function extractImageData(element) {
     return imgData;
 }
 
+const isImage = /\.(png|jpeg)$/;
+
+/**
+ * Load all of the resources in a directory and its subdirectories, and 
+ * convert JSON files to objects and image files (.png, .jpeg) to ImageData
+ * @param {string} directory The virtual parent directory
+ * @returns A map from virtual path to either the object, string or ImageData
+ */
 async function getResourceMap(directory) {
     async function getResource(path) {
-        if (path.endsWith('.png')) {
+        if (isImage.test(path)) {
             const img = new Promise(resolve => {
                 const img = new Image();
                 img.src = path;
@@ -266,19 +274,31 @@ class TextModeInterface {
         });
     }
 
+    /**
+     * Write text at the bottom, breaking the line if it is too long
+     * @param {string} s Text to write at the bottom of the interface
+     */
     writeLine(s) {
-        for (let m of breakText(s, this.cols)) {
+        for (let m of breakText(line, this.cols)) {
             this.parent.children[0].remove();
             const line = insertElementBefore('div', this.input.parentElement);
             line.innerText = m;
         }
     }
 
+    /**
+     * Reads a line of text from the interface
+     * @returns string Input entered before pressing return
+     */
     async readLine() {
         return await this.inputQueue.dequeue();
     }
 }
 
+/**
+ * A map to the keyCode values returned by readKey methods for common
+ * keyboard layouts
+ */
 const keyCodes = {
     backspace: 8, tab: 9, enter: 13, shift: 16, control: 17, alt: 18, capsLock: 20, escape: 27, ' ': 32,
     pageUp: 33, pageDown: 34, end: 35, home: 36, left: 37, up: 38, right: 39, down: 40,
@@ -367,10 +387,18 @@ class CharacterModeInterface {
         this.ptrQueue = createPointerEventQueue(parent, cols, rows);
     }
 
+    /**
+     * Read the next key press or release event
+     * @returns Object with keyCode and down flag
+     */
     async readKey() {
         return await this.keyQueue.dequeue();
     }
 
+    /**
+     * Read the next mouse event (which could be out of bounds if dragging)
+     * @returns Object with row, col, and flags (down, click, release, in)
+     */
     async readPtr() {
         const evt = await this.ptrQueue.dequeue();
         return {
@@ -390,6 +418,12 @@ class CharacterModeInterface {
             return null;
     }
 
+    /**
+     * Write a single character to the screen
+     * @param {string} c Character to write
+     * @param {number} col Horizontal location
+     * @param {number} row Vertical location
+     */
     writeChar(c, col, row) {
         const e = this.getElement(col, row);
         if (e != null) {
@@ -399,11 +433,23 @@ class CharacterModeInterface {
         }
     }
 
+    /**
+     * Read a single character from the string
+     * @param {number} col Horizontal location
+     * @param {number} row Vertical location
+     * @returns Chararacter
+     */
     readChar(col, row) {
         const e = this.getElement(col, row);
         return e != null ? e.innerText : null;
     }
 
+    /**
+     * Change the fontStyle, fontWeight, textDecoration, color, or backgroundColor of a character
+     * @param {object} style Map of styles to change
+     * @param {number} col Horizontal location
+     * @param {number} row Vertical location
+     */
     setCharStyle(style, col, row) {
         const e = this.getElement(col, row);
         if (e != null)
@@ -412,6 +458,12 @@ class CharacterModeInterface {
                     e.style[p] = style[p];
     }
 
+    /**
+     * Get the styles which have been at of a character
+     * @param {number} col Horizontal location
+     * @param {number} row Vertical location
+     * @returns Map of setCharStyle change
+     */
     getCharStyle(col, row) {
         const e = this.getElement(col, row);
         if (e != null && e.style != null) {
@@ -435,10 +487,18 @@ class PixelModeInterface {
         this.ptrQueue = createPointerEventQueue(element, width, height);
     }
 
+    /**
+     * Read the next key press or release event
+     * @returns Object with keyCode and down flag
+     */
     async readKey() {
         return await this.keyQueue.dequeue();
     }
 
+    /**
+     * Read the next mouse event (which could be out of bounds if dragging)
+     * @returns Object with x, y, and flags (down, click, release, in)
+     */
     async readPtr() {
         const evt = await this.ptrQueue.dequeue();
         evt.x = parseInt(evt.x);
@@ -446,6 +506,12 @@ class PixelModeInterface {
         return evt;
     }
 
+    /**
+     * Write a single pixel to the screen
+     * @param {color} pxl Object with r, g, b and (optional) a
+     * @param {number} x Horizontal location
+     * @param {number} y Vertical location
+     */
     writePixel(pxl, x, y) {
         const b = new Uint8ClampedArray(4);
         b[0] = pxl.r;
@@ -456,6 +522,12 @@ class PixelModeInterface {
         this.writeImageRect(new ImageData(b, 1), x, y, 0, 0, 1, 1);
     }
 
+    /**
+     * Read a single pixel from the screen
+     * @param {number} x Horizontal location
+     * @param {number} y Vertical location
+     * @returns Object with r, g, b and (optional) a
+     */
     readPixel(x, y) {
         const img = this.readImage(x, y, 1, 1);
         return {
@@ -466,14 +538,39 @@ class PixelModeInterface {
         };
     }
 
+    /**
+     * Write an entire image to the screen
+     * @param {ImageData} img RGBA image data
+     * @param {number} x Horizontal location of top-left of the destination
+     * @param {number} y Vertical location of top-left of the destination
+     */
     writeImage(img, x, y) {
         this.writeImageRect(img, x, y, 0, 0, img.width, img.height);
     }
 
+    /**
+     * Read a portion the screen as an image image from the source rectangle on the screen
+     * @param {ImageData} img RGBA image data
+     * @param {number} x Horizontal location of top-left of the source
+     * @param {number} y Vertical location of top-left of the source
+     * @param {number} width Horizontal size of the source
+     * @param {number} height Vertical size of the source
+     * @returns RGBA image data
+     */
     readImage(x, y, width, height) {
         return this.ctx.getImageData(x, y, width, height);
     }
 
+    /**
+     * Write a portion of the image to the screen
+     * @param {ImageData} img RGBA image data
+     * @param {number} x Horizontal location of top-left of the destination
+     * @param {number} y Vertical location of top-left of the destination
+     * @param {number} ix Horizontal location of top-left of the source 
+     * @param {number} iy Vertical location of top-left of the source 
+     * @param {number} iwidth Horizontal size of the source 
+     * @param {number} iheight Vertical size of top-left in the source 
+     */
     writeImageRect(img, x, y, ix, iy, iwidth, iheight) {
         this.ctx.putImageData(img, x, y, ix, iy, iwidth, iheight);
     }
@@ -485,6 +582,13 @@ function modeSwitch() {
     setStyle();
 }
 
+/**
+ * Enter text mode for line-by-line output with an input line 
+ * to capture typing as it happens
+ * @param {number} cols The length of each line
+ * @param {number} rows The number of lines
+ * @returns a TextModeInterface object
+ */
 function textMode(cols, rows) {
     modeSwitch();
     const div = appendElement('div', appendElement('div', document.body));
@@ -492,6 +596,12 @@ function textMode(cols, rows) {
     return new TextModeInterface(div, cols, rows);
 }
 
+/**
+ * Enter character mode for direct character access with keystroke and mouse input
+ * @param {number} cols Horizontal characters
+ * @param {number} rows Vertical characters
+ * @returns a CharacterModeInterface object
+ */
 function charMode(cols, rows) {
     modeSwitch();
     const div = appendElement('div', appendElement('div', document.body));
@@ -499,6 +609,12 @@ function charMode(cols, rows) {
     return new CharacterModeInterface(div, cols, rows);
 }
 
+/**
+ * Enter graphics with direct pixel access with keystroke and mouse input
+ * @param {number} width Horizontal pixels
+ * @param {number} height Vertical pixels 
+ * @returns a PixelModeInterface object
+ */
 function pixelMode(width, height) {
     modeSwitch();
     const canvas = appendElement('canvas', appendElement('div', document.body));
