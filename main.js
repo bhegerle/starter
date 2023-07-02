@@ -1,4 +1,4 @@
-import { textMode, charMode, pixelMode, keyCodes, getResourceMap } from './starter.js';
+import { textMode, charMode, pixelMode, keyCodes, getResourceMap, AnimationClock } from './starter.js';
 
 async function txtDemo() {
     const txt = textMode(80, 25);
@@ -72,11 +72,35 @@ async function pxlDemo() {
     }
 }
 
+async function animationDemo() {
+    const pxl = pixelMode(30, 30);
+
+    const clock = new AnimationClock(60);
+
+    let t = 0;
+    while (true) {
+        t += await clock.tick();
+
+        for (let x = 0; x < 30; x++) {
+            for (let y = 0; y < 30; y++) {
+                const v = t / 1000 + x + y;
+                const c = {
+                    r: 256 * (Math.sin(v / 11) + 1),
+                    g: 256 * (Math.sin(v / 17) + 1),
+                    b: 256 * (Math.sin(v / 23) + 1),
+                };
+                pxl.writePixel(c, x, y);
+            }
+        }
+    }
+}
+
 const navMap = {
     '#pxl': pxlDemo,
     '#txt': txtDemo,
     '#char': charDemo,
-    '#img': imageDemo
+    '#img': imageDemo,
+    '#anim': animationDemo
 };
 
 function showMenu() {
@@ -86,7 +110,8 @@ function showMenu() {
             <p><a href="#char">char paint</a></p>
             <p><a href="#pxl">pixel paint</a></p>
             <p><a href="#img">image demo</a></p>
-            <p><a href="#gfx">2D graphics</a></p>
+            <p><a href="#anim">animation demo</a></p>
+            <!--p><a href="#gfx">2D graphics</a></p-->
         </div>`;
 }
 

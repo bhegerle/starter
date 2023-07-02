@@ -71,6 +71,26 @@ function extractImageData(element) {
 
 const isImage = /\.(png|jpeg)$/;
 
+function timeout(ms) {
+    return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+class AnimationClock {
+    constructor(rate) {
+        this.duration = 1 / rate;
+        this.lastTick = performance.now();
+    }
+
+    async tick() {
+        const now = performance.now();
+        const ticks = parseInt((now - this.lastTick) / this.duration) + 1;
+        const nextTick = this.lastTick + ticks * this.duration;
+        await timeout(nextTick - now);
+        this.lastTick = nextTick;
+        return ticks;
+    }
+}
+
 /**
  * Load all of the resources in a directory and its subdirectories, and 
  * convert JSON files to objects and image files (.png, .jpeg) to ImageData
@@ -624,4 +644,4 @@ function pixelMode(width, height) {
     return new PixelModeInterface(canvas, width, height);
 }
 
-export { textMode, charMode, pixelMode, keyCodes, getResourceMap };
+export { textMode, charMode, pixelMode, keyCodes, getResourceMap, AnimationClock };
