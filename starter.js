@@ -321,7 +321,8 @@ class TextModeInterface {
      * @param {string} s Text to write at the bottom of the interface
      */
     writeLine(s) {
-        for (let m of breakText(line, this.cols)) {
+        s = s.replace(' ', '\u00a0');
+        for (let m of breakText(s, this.cols)) {
             this.parent.children[0].remove();
             const line = insertElementBefore('div', this.input.parentElement);
             line.innerText = m;
