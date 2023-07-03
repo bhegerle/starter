@@ -33,9 +33,6 @@ class HTTPRequestHandler(SimpleHTTPRequestHandler):
 
 
     def _send_str_content(self, s, content_type):
-        print(f'send {s}')
-        print(f'send {content_type}')
-
         self.send_response(200)
         self.send_header('Content-Type', f'{content_type};charset=utf-8')
         self.end_headers()
@@ -46,8 +43,6 @@ class HTTPRequestHandler(SimpleHTTPRequestHandler):
 def find(path):
     cwd = Path(getcwd())
     rpath = cwd.joinpath(path).resolve()
-    # if not rpath.is_relative_to(cwd):
-    #     raise Exception()
 
     return [str(PurePosixPath(p.relative_to(cwd)))
             for p in rpath.glob('**/*')
