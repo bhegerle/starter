@@ -214,6 +214,28 @@ function autoZoom(child) {
     const ro = new ResizeObserver(zoom);
     ro.observe(parent);
     ro.observe(child);
+
+    zoom();
+}
+
+function autoSize(child, aspectRatio) {
+    const parent = child.parentElement;
+    parent.setAttribute('class', 'fill-viewport');
+
+    function zoom() {
+        const pr = parent.getBoundingClientRect();
+
+        if (pr.width / pr.height < aspectRatio) {
+            child.width = pr.width;
+            child.height = pr.width / aspectRatio;
+        } else {
+            child.width = pr.height * aspectRatio;
+            child.height = pr.height;
+        }
+    }
+
+    new ResizeObserver(zoom).observe(parent);
+
     zoom();
 }
 
@@ -596,6 +618,18 @@ class PixelModeInterface {
     }
 }
 
+class GraphicsModeInterface {
+    constructor(element) {
+        this.ctx = element.getContext("2d");
+
+        this.keyQueue = createKeyEventQueue();
+        // this.ptrQueue = createPointerEventQueue(element, width, height);
+    }
+
+    get width() { return this.ctx.canvas.width; }
+    get height() { return this.ctx.canvas.height; }
+}
+
 function modeSwitch() {
     document.body.innerHTML = '';
     docEvts.removeAll();
@@ -644,4 +678,11 @@ function pixelMode(width, height) {
     return new PixelModeInterface(canvas, width, height);
 }
 
-export { textMode, charMode, pixelMode, keyCodes, getResourceMap, AnimationClock };
+function graphicsMode(aspectRatio) {
+    modeSwitch();
+    const canvas = appendElement('canvas', appendElement('div', document.body));
+    autoSize(canvas, aspectRatio);
+    return new GraphicsModeInterface(canvas);
+}
+
+export { textMode, charMode, pixelMode, graphicsMode, keyCodes, getResourceMap, AnimationClock };
